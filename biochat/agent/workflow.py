@@ -24,6 +24,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+_FORMAT_RETRY_MESSAGE_NAME = "biochat_format_retry"
+
 
 # Process-wide checkpoint store: thread ids are validated session ids, so
 # a single saver keeps per-session histories consistent across every
@@ -105,7 +107,8 @@ def create_generation_node(agent: "A1") -> Callable[[AgentState], AgentState]:
             # Parsing error — retry or abort
             error_count = sum(
                 1 for m in state["messages"]
-                if isinstance(m, AIMessage) and "There are no tags" in str(m.content)
+                if isinstance(m, HumanMessage)
+                and getattr(m, "name", None) == _FORMAT_RETRY_MESSAGE_NAME
             )
             if error_count >= 2:
                 logger.warning("Repeated parsing errors — ending conversation")
@@ -115,10 +118,11 @@ def create_generation_node(agent: "A1") -> Callable[[AgentState], AgentState]:
                 ))
             else:
                 state["messages"].append(HumanMessage(
-                    content="Each response must include thinking process followed by "
-                            "either <execute> or <solution> tag. But there are no tags "
+                    content="Each response must include either an <execute> or "
+                            "<solution> tag. But there are no tags "
                             "in the current response. Please follow the instruction, "
-                            "fix and regenerate the response again."
+                            "fix and regenerate the response again.",
+                    name=_FORMAT_RETRY_MESSAGE_NAME,
                 ))
                 state["next_step"] = "generate"
 
@@ -240,12 +244,14 @@ def create_self_critic_router() -> Callable[[AgentState], Literal["generate", "e
 def build_agent_workflow(
     agent: "A1",
     self_critic: bool = False,
+    max_critic_rounds: int = 1,
 ) -> StateGraph:
     """Build and return a compiled LangGraph ``StateGraph`` for the agent.
 
     Args:
         agent: The A1 agent instance (must have ``llm`` and ``system_prompt`` set).
         self_critic: If True, add a self-critic feedback loop after generation.
+        max_critic_rounds: Maximum number of critique-and-regenerate rounds.
 
     Returns:
         A compiled LangGraph workflow ready for ``.stream()``.
@@ -258,7 +264,10 @@ def build_agent_workflow(
 
     if self_critic:
         from biochat.agent.self_critic import create_self_critic_node
-        workflow.add_node("self_critic", create_self_critic_node(agent))
+        workflow.add_node(
+            "self_critic",
+            create_self_critic_node(agent, max_rounds=max_critic_rounds),
+        )
         workflow.add_conditional_edges(
             "generate",
             create_router(),
