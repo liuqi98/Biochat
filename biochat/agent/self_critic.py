@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Callable
 
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage
 
 from biochat.agent.agent_state import AgentState
 
@@ -16,7 +16,9 @@ if TYPE_CHECKING:
     from biochat.agent.a1 import A1
 
 
-def create_self_critic_node(agent: "A1") -> Callable[[AgentState], AgentState]:
+def create_self_critic_node(
+    agent: "A1", *, max_rounds: int = 1
+) -> Callable[[AgentState], AgentState]:
     """Return a ``self_critic`` LangGraph node function.
 
     When the agent reaches ``max_rounds`` without a satisfactory solution,
@@ -24,7 +26,10 @@ def create_self_critic_node(agent: "A1") -> Callable[[AgentState], AgentState]:
     for another attempt.
     """
 
-    def self_critic(state: AgentState, *, max_rounds: int = 0) -> AgentState:
+    if max_rounds < 0:
+        raise ValueError("max_rounds must be non-negative")
+
+    def self_critic(state: AgentState) -> AgentState:
         if getattr(agent, "critic_count", 0) < max_rounds:
             feedback_prompt = (
                 f"Here is a reminder of what the user requested: {agent.user_task}\n"
@@ -39,7 +44,8 @@ def create_self_critic_node(agent: "A1") -> Callable[[AgentState], AgentState]:
                 state["messages"] + [HumanMessage(content=feedback_prompt)]
             )
 
-            state["messages"].append(HumanMessage(
+            # The feedback is model-generated, not a new user instruction.
+            state["messages"].append(AIMessage(
                 content=f"Wait... this is not enough to solve the task. "
                         f"Here are some feedbacks for improvement:\n{feedback.content}"
             ))
