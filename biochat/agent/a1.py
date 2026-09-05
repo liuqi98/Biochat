@@ -155,6 +155,7 @@ class A1:
         # ── Execution config ───────────────────────────────────
         self.timeout_seconds = timeout_seconds
         self.self_critic = False
+        self.test_time_scale_round = 0
         self.critic_count = 0
         self.user_task = ""
         self._execution_results: list[dict] = []
@@ -187,7 +188,14 @@ class A1:
 
         Delegates to ``workflow.build_agent_workflow()``.
         """
+        critic_rounds = int(test_time_scale_round)
+        if critic_rounds < 0:
+            raise ValueError("test_time_scale_round must be non-negative")
+        if self_critic and critic_rounds == 0:
+            critic_rounds = 1
+
         self.self_critic = self_critic
+        self.test_time_scale_round = critic_rounds
 
         # Build system prompt (delegated to SystemPromptBuilder)
         data_lake_path = self.path + "/data_lake"
@@ -236,7 +244,11 @@ class A1:
 
         # Build LangGraph workflow via the extracted module
         from biochat.agent.workflow import build_agent_workflow
-        self.app = build_agent_workflow(self, self_critic=self_critic)
+        self.app = build_agent_workflow(
+            self,
+            self_critic=self_critic,
+            max_critic_rounds=critic_rounds,
+        )
         # Backward-compat: expose checkpointer on the agent instance
         self.checkpointer = getattr(self.app, "checkpointer", None)
 
