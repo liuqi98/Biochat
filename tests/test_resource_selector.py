@@ -124,6 +124,21 @@ class TestResourceSelector:
         )
         assert selected["tools"] == []
 
+    def test_negative_indices_dropped(self):
+        from biochat.model.resource_selector import ResourceSelector
+
+        class FakeLLM:
+            def invoke(self, messages):
+                class Reply:
+                    content = "TOOLS: [-1]\nDATA_LAKE: []\nLIBRARIES: []"
+
+                return Reply()
+
+        selected = ResourceSelector().prompt_based_retrieval(
+            "q", RESOURCES, llm=FakeLLM()
+        )
+        assert selected["tools"] == []
+
     def test_callable_llm_interface(self):
         from biochat.model.resource_selector import ResourceSelector
 
