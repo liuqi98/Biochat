@@ -149,6 +149,33 @@ def test_streaming_service_forwards_request_session_id():
     assert service._agent.seen_session_ids == ["session-b"]
 
 
+def test_streaming_service_runs_resource_retrieval_once():
+    class RetrievalAgent(RecordingServiceAgent):
+        def __init__(self):
+            super().__init__()
+            self.use_tool_retriever = True
+            self.retrieval_calls = 0
+
+        def _prepare_resources_for_retrieval(self, prompt):
+            self.retrieval_calls += 1
+            return {"tools": [], "data_lake": [], "libraries": []}
+
+        def update_system_prompt_with_selected_resources(self, selected):
+            pass
+
+        def go_stream(self, prompt, *, session_id="default"):
+            selected = self._prepare_resources_for_retrieval(prompt)
+            self.update_system_prompt_with_selected_resources(selected)
+            yield from super().go_stream(prompt, session_id=session_id)
+
+    service = BioAgentService(BiochatSettings())
+    service._agent = RetrievalAgent()
+    service._initialized = True
+
+    list(service.run_task_stream(ChatRequest(message="q", session_id="retrieval")))
+    assert service._agent.retrieval_calls == 1
+
+
 def test_sync_service_forwards_request_session_id():
     service = make_recording_service()
     service.run_task(ChatRequest(message="q", session_id="session-c"))
