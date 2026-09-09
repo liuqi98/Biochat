@@ -115,7 +115,7 @@ def create_generation_node(agent: "A1") -> Callable[[AgentState], AgentState]:
                 ))
             else:
                 state["messages"].append(HumanMessage(
-                    content="Each response must include thinking process followed by "
+                    content="Each response must include an optional public <progress> summary followed by "
                             "either <execute> or <solution> tag. But there are no tags "
                             "in the current response. Please follow the instruction, "
                             "fix and regenerate the response again."

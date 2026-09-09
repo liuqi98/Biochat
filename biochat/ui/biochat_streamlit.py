@@ -460,7 +460,7 @@ def render_assistant_card(
         open_attr = " open" if trace_expanded else ""
         trace_html = (
             f"<details{open_attr}>"
-            '<summary class="bc-trace-toggle">🧠 Processing Trace</summary>'
+            '<summary class="bc-trace-toggle">🧠 任务过程与方法摘要</summary>'
             f'<div class="bc-trace-body">{_escape(trace)}</div>'
             '</details>'
         )
@@ -829,6 +829,19 @@ def stream_agent_response(
     session_id: str = "default",
     settings=None,
 ):
+    """Keep the UI responsive during model, initialization and tool waits."""
+    from biochat.services.progress import with_wait_updates
+
+    yield from with_wait_updates(
+        lambda: _stream_agent_response_events(user_query, session_id, settings)
+    )
+
+
+def _stream_agent_response_events(
+    user_query: str,
+    session_id: str = "default",
+    settings=None,
+):
     """Stream agent execution with real-time incremental updates.
 
     Uses ``BioAgentService.run_task_stream()`` which calls
@@ -860,14 +873,16 @@ def stream_agent_response(
     trace_lines: list[str] = []
     answer_so_far: str = ""
     current_step: str = ""
+    status = "thinking"
 
     try:
         for event in svc.run_task_stream(request):
             status = event.get("status", "thinking")
             content = event.get("content", "")
 
-            if event.get("trace_line"):
-                trace_lines.append(event["trace_line"])
+            detail = sanitize_visible_text(event.get("trace_line", ""))
+            if detail and (not trace_lines or trace_lines[-1] != detail):
+                trace_lines.append(detail)
 
             if status == "completed":
                 answer_so_far = event.get("answer_so_far", content)
@@ -879,14 +894,13 @@ def stream_agent_response(
                 answer_so_far = event.get("answer_so_far", content)
                 current_step = "✍️ 正在生成回答..."
             elif status == "thinking":
-                current_step = "🤔 分析思考中..."
+                current_step = detail or "正在准备下一步操作"
             elif status == "retrieving":
-                current_step = "🔍 检索工具和数据库中..."
+                current_step = detail or "正在检索工具和数据库"
             elif status == "executing":
-                lang = event.get("language", "python")
-                current_step = f"💻 执行 {lang.upper()} 代码中..."
+                current_step = detail or "正在运行工具，等待执行结果"
             elif status == "observing":
-                current_step = "📋 获取执行结果..."
+                current_step = detail or "正在检查执行结果"
 
             yield {
                 "status": status,
@@ -919,6 +933,8 @@ def render_assistant_card_streaming(
     status: str,
     current_step: str,
     trace_expanded: bool = True,
+    elapsed_seconds: int = 0,
+    stage_elapsed_seconds: int = 0,
 ) -> str:
     """Render an assistant card that updates in real-time during streaming.
 
@@ -933,16 +949,17 @@ def render_assistant_card_streaming(
         open_attr = " open" if trace_expanded else ""
         trace_html = (
             f"<details{open_attr}>"
-            '<summary class="bc-trace-toggle">🧠 处理轨迹</summary>'
+            '<summary class="bc-trace-toggle">🧠 任务过程与方法摘要</summary>'
             f'<div class="bc-trace-body">{_escape(trace_text)}</div>'
             '</details>'
         )
 
     # Build status badge
     status_map = {
+        "initializing": ("初始化中", "planning"),
         "thinking": ("分析中", "planning"),
         "retrieving": ("检索工具中", "retrieving"),
-        "executing": ("执行代码中", "running"),
+        "executing": ("执行任务中", "running"),
         "observing": ("获取结果中", "running"),
         "answering": ("生成回答中", "running"),
         "completed": ("已完成", "completed"),
@@ -951,7 +968,7 @@ def render_assistant_card_streaming(
     label, css_class = status_map.get(status, ("处理中", "planning"))
 
     # Build the card body based on status
-    if status in ("thinking", "retrieving", "executing", "observing"):
+    if status in ("initializing", "thinking", "retrieving", "executing", "observing"):
         # Show spinner + current step during execution
         body_html = (
             f'<div class="biochat-thinking">'
@@ -959,7 +976,8 @@ def render_assistant_card_streaming(
             f'<div>'
             f'<div style="font-weight:600;margin-bottom:4px">{_escape(current_step)}</div>'
             f'<div style="font-size:12px;color:var(--bc-text-muted)">'
-            f'请耐心等待，复杂任务可能需要几分钟...</div>'
+            f'已用时 {elapsed_seconds} 秒 · 当前步骤 {stage_elapsed_seconds} 秒'
+            f' · 有新结果时自动更新</div>'
             f'</div>'
             f'</div>'
         )
@@ -1163,7 +1181,7 @@ def main() -> None:
             settings=st.session_state.get("applied_settings"),
         ):
             final_status = update["status"]
-            # P0: sanitize trace lines — whitelist status events only
+            # Public summaries and status events pass through the display sanitizer.
             final_trace_lines = [
                 sanitize_visible_text(line) for line in update.get("trace_lines", [])
                 if sanitize_visible_text(line)
@@ -1223,6 +1241,8 @@ def main() -> None:
                         status=update["status"],
                         current_step=update.get("current_step", "处理中..."),
                         trace_expanded=True,
+                        elapsed_seconds=update.get("elapsed_seconds", 0),
+                        stage_elapsed_seconds=update.get("stage_elapsed_seconds", 0),
                     ),
                     unsafe_allow_html=True,
                 )
