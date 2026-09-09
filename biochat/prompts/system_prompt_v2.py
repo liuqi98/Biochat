@@ -48,12 +48,21 @@ _ANTIBODY_DESIGN_ADDENDUM = """\
 ANTIBODY DESIGN REQUIREMENTS:
 When the user requests antibody/CDR/nanobody/VH-only design:
 1. DO NOT invent CDRH3 sequences from your training data.
-2. Use design_vh_only_antibodies(epitope_sequence=..., num_candidates=...)
-   from biochat.tool.antibody_design.
+2. For structure-guided design, VH-only engineering, H3 redesign, or reuse of
+   CD19 project methodology, first use get_antibody_design_method() from
+   biochat.tool.antibody_design. Match the route and antibody format to the task.
+   Use assess_antibody_design_evidence() to check supplied pilot/candidate evidence.
+   These are planning/checking tools, NOT generation or structure backends.
+   For short-peptide sequence-only exploration, design_vh_only_antibodies() is
+   available; do not substitute it for a requested complex-structure workflow.
+   Never reuse historical CD19 positions, thresholds, or sequences for a new target.
 3. NEVER fabricate GRAVY, pI, docking scores, or binding affinity values.
 4. Always include the safety disclaimer from the tool output.
 5. If the tool is unavailable, clearly state limitations.
-6. NEVER call any computed score "binding affinity", "ΔG", "Kd", or "ddG".
+6. Never label proxy scores as physical energies or experimental affinity.
+   Actual computed interface energies and paired deltas may be reported only
+   with their method, units, reference and matched comparison context.
+   Rosetta REU is not experimental Kd, kcal/mol or an affinity fold-change.
 7. When reporting results, ALWAYS include score provenance.
 """
 

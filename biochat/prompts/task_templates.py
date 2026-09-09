@@ -69,7 +69,8 @@ TASK_TEMPLATES: dict[str, TaskTemplate] = {
         task_type="antibody_design",
         user_prompt_template=(
             "Query: Design VH-only antibody CDRH3 candidates targeting epitope {epitope}. "
-            "Use the design_vh_only_antibodies() tool for computational design. "
+            "For sequence-only exploration use design_vh_only_antibodies(); for structure-guided "
+            "or H3 redesign first use get_antibody_design_method() and collect its required inputs. "
             "Report candidates with provenance-tracked scores, then propose "
             "2-3 experimental validation steps."
         ),
@@ -78,6 +79,7 @@ TASK_TEMPLATES: dict[str, TaskTemplate] = {
             "建议验证实验", "不确定性与局限", "安全声明",
         ),
         recommended_tools=(
+            "get_antibody_design_method", "assess_antibody_design_evidence",
             "design_vh_only_antibodies", "score_and_rank_candidates",
             "build_vh_structures", "prepare_docking_inputs",
         ),

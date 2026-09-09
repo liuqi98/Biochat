@@ -9,6 +9,7 @@ the agent's LLM for semantic relevance scoring.
 from __future__ import annotations
 
 import glob
+import re
 from typing import TYPE_CHECKING, Any
 
 import logging
@@ -60,8 +61,39 @@ def retrieve_relevant_resources(agent: "A1", prompt: str) -> dict | None:
 
     # Normalise selected resources
     result = _normalise_selected_resources(agent, selected)
+    _include_design_method_resources(agent, prompt, result, all_tools)
     _print_retrieval_summary(result)
     return result
+
+
+def _include_design_method_resources(agent: "A1", prompt: str, result: dict, all_tools: list) -> None:
+    """Keep methodology available for design tasks even if semantic retrieval misses it.
+
+    CD19 expression/annotation questions alone do not activate design guidance.
+    Uses existing registered resources and does not add a second model call.
+    """
+    subject = re.search(r"CD[-_ ]?19|抗体|单域|纳米抗体|antibod|nanobod|VH[-_ ]?only|VHH|CDRH3|HCDR3", prompt, re.I)
+    action = re.search(r"设计|重设计|单域化|筛选|优化|方法|流程|经验|design|screen|optimi|workflow|method|experience", prompt, re.I)
+    if not (subject and action):
+        return
+    from biochat.tool.antibody_design.methods import METHOD_DOC_IDS, METHOD_TOOL_NAMES
+
+    selected_ids = {doc["id"] for doc in result["know_how"]}
+    for doc_id in METHOD_DOC_IDS:
+        if doc_id in selected_ids:
+            continue
+        doc = agent.know_how_loader.get_document_by_id(doc_id)
+        if doc:
+            result["know_how"].append({
+                "id": doc["id"], "name": doc["name"], "description": doc["description"],
+                "content": doc["content_without_metadata"], "metadata": doc["metadata"],
+            })
+    selected_names = {tool.get("name") if isinstance(tool, dict) else getattr(tool, "name", tool)
+                      for tool in result["tools"]}
+    for tool in all_tools:
+        if tool.get("name") in METHOD_TOOL_NAMES and tool["name"] not in selected_names:
+            # Copy: prompt generation may fill in module names.
+            result["tools"].append(dict(tool, module="biochat.tool.antibody_design"))
 
 
 def apply_retrieval_results(agent: "A1", selected_resources: dict) -> None:

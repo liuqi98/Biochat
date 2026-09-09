@@ -5016,6 +5016,33 @@ protocols:
     name: filename
     type: str
 antibody_design:
+- name: get_antibody_design_method
+  description: '获取从 CD19 项目提炼的通用抗体设计方法、路线输入要求和验收门槛。适用于 VH-only、VHH 和配对 VH/VL 的结构设计规划。仅方法，不提供历史序列，不执行 GPU 设计。'
+  required_parameters: []
+  optional_parameters:
+  - name: route
+    type: str
+    description: 'fixed_backbone、partial_diffusion、h3_only 或 h3_length_redesign；按任务选择，默认 h3_only。'
+    default: h3_only
+  - name: antibody_format
+    type: str
+    description: 'human_vh_only、vhh 或 vh_vl。'
+    default: human_vh_only
+- name: assess_antibody_design_evidence
+  description: '按通用抗体设计方法检查调用方提供的证据：硬筛失败不能被有利能量或开发性颜色覆盖；缺失不算通过；检查配对差值、RMSD 和 TAP/TNP 适用性。不会读取文件或重新计算指标。'
+  required_parameters:
+  - name: evidence
+    type: dict
+    description: 'gates 为各项 status(pass/fail/not_run) 与 evidence_ref；可含 scores(kind/value/unit/evidence_ref 及比较上下文) 和 developability(method/structure_source/conformation_state/reference_population/evidence_ref)。先调用 get_antibody_design_method 查看所需门槛。'
+  optional_parameters:
+  - name: stage
+    type: str
+    description: 'pilot 或 candidate。'
+    default: candidate
+  - name: antibody_format
+    type: str
+    description: 'human_vh_only、vhh 或 vh_vl。'
+    default: human_vh_only
 - name: design_vh_only_antibodies
   description: 'Design VH-only antibody CDRH3 candidates targeting a short peptide
     epitope (≤24 amino acids). Uses computational filtering and scoring (NOT LLM heuristics).
