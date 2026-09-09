@@ -322,12 +322,13 @@ class BioAgentService:
         Yields:
             dict with keys:
             - status (str): 'thinking' | 'executing' | 'observing' | 'answering' | 'completed' | 'error'
-            - content (str): The current event text (thinking, code, observation, or answer)
+            - content (str): Answer or error text; empty for intermediate events
             - answer_so_far (str): Accumulated cleaned answer text (only for 'answering' / 'completed')
             - trace_line (str): A single line for the trace panel
             - language (str): 'python' | 'r' | 'bash' (only for 'executing')
         """
         import re as _re
+        from biochat.services.progress import public_summary, execution_summary
 
         if not self.is_initialized and not getattr(request, "llm_model", None):
             # Override requests resolve lazily to cached agents instead.
@@ -357,6 +358,13 @@ class BioAgentService:
         solution_found: bool = False
         gen_buffer: str = ""
         """Raw tokens of the current LLM generation (reset at each run boundary)."""
+        last_summary = ""
+        current_action = ""
+
+        yield {
+            "status": "thinking", "content": "", "answer_so_far": "",
+            "trace_line": "正在准备任务，等待可用执行资源", "language": "",
+        }
 
         # Serialize retrieval mutation plus the full go_stream consumption
         # behind the re-entrant task lock; restore any request-scoped
@@ -389,11 +397,19 @@ class BioAgentService:
                         trace_lines.append(
                             f"✅ 已选择 {tool_count} 个工具, {data_count} 个数据集, {lib_count} 个库"
                         )
+                        yield {
+                            "status": "retrieving", "content": "", "answer_so_far": "",
+                            "trace_line": trace_lines[-1], "language": "",
+                        }
                 except Exception as e:
                     trace_lines.append(f"⚠️ 工具检索跳过: {e}")
 
             # ── Phase 2: Agent execution stream ──────────────────
             _report(AgentStatus.RUNNING_CODE, "Agent 正在执行任务...")
+            yield {
+                "status": "thinking", "content": "", "answer_so_far": "",
+                "trace_line": "正在生成任务步骤与方法摘要", "language": "",
+            }
 
             if not hasattr(agent, "go_stream"):
                 # Fallback: use synchronous go() and yield once
@@ -410,20 +426,28 @@ class BioAgentService:
                 return
 
             for event in agent.go_stream(request.message, session_id=request.session_id):
-                step_count += 1
 
                 # ── Token-level events: stream the final answer live ──
                 # Tokens are buffered per LLM generation.  As soon as the
                 # model opens the <solution> tag, everything after it is
                 # forwarded incrementally as `answering` events so the UI
                 # can stream the final answer token-by-token.  Tokens
-                # before the tag (thinking) never leave this service layer.
+                # outside explicit public progress/solution tags stay internal.
                 if event.get("type") == "token":
                     token = event.get("content", "")
                     if not isinstance(token, str):
                         token = str(token)
 
                     gen_buffer += token
+
+                    summary = public_summary(gen_buffer)
+                    if summary and summary != last_summary:
+                        last_summary = summary
+                        trace_lines.append(summary)
+                        yield {
+                            "status": "thinking", "content": "", "answer_so_far": "",
+                            "trace_line": summary, "language": "",
+                        }
 
                     if not solution_found and "<solution>" in gen_buffer:
                         incremental = gen_buffer.split("<solution>", 1)[1]
@@ -456,6 +480,14 @@ class BioAgentService:
                     continue
 
                 text_stripped = text.strip()
+                summary = public_summary(text_stripped)
+                if summary and summary != last_summary:
+                    last_summary = summary
+                    trace_lines.append(summary)
+                    yield {
+                        "status": "thinking", "content": "", "answer_so_far": "",
+                        "trace_line": summary, "language": "",
+                    }
 
                 # ── Detect <solution> tag ────────────────────────
                 solution_match = _re.search(
@@ -481,6 +513,7 @@ class BioAgentService:
                     r"<execute>(.*?)</execute>", text_stripped, _re.DOTALL
                 )
                 if execute_match:
+                    step_count += 1
                     code = execute_match.group(1).strip()
                     language = "python"
                     if code.startswith("#!R"):
@@ -490,12 +523,19 @@ class BioAgentService:
                         language = "bash"
                         code = _re.sub(r"^#!BASH|^#!CLI", "", code, count=1).strip()
 
-                    trace_lines.append(f"💻 执行 {language.upper()} 代码 (步骤 {step_count})...")
+                    registry = getattr(agent, "tool_registry", None)
+                    current_action = execution_summary(
+                        code, language, getattr(registry, "tools", [])
+                    )
+                    detail = f"步骤 {step_count} · {current_action}"
+                    if last_summary:
+                        detail = f"{last_summary} ｜ {detail}"
+                    trace_lines.append(detail)
                     yield {
                         "status": "executing",
                         "content": "",  # do NOT leak generated code content
                         "answer_so_far": "",
-                        "trace_line": f"💻 正在执行 {language.upper()} 代码...",
+                        "trace_line": detail,
                         "language": language,
                     }
                     continue
@@ -505,14 +545,16 @@ class BioAgentService:
                     r"<observation>(.*?)</observation>", text_stripped, _re.DOTALL
                 )
                 if observation_match:
-                    obs = observation_match.group(1).strip()
                     # SECURITY: trace panel shows event status only, not
                     # the raw execution output content.
+                    detail = f"步骤 {step_count} 已返回结果，正在检查结果并确定下一步"
+                    last_summary = ""  # do not reuse an old action for the next step
+                    trace_lines.append(detail)
                     yield {
                         "status": "observing",
                         "content": "",  # do NOT leak observation content
                         "answer_so_far": "",
-                        "trace_line": f"📋 获取执行结果 ({len(obs)} 字符)",
+                        "trace_line": detail,
                         "language": "",
                     }
                     continue
@@ -529,7 +571,7 @@ class BioAgentService:
                 else:
                     thinking = text_stripped
 
-                if thinking and len(thinking) > 10:
+                if thinking and len(thinking) > 10 and not summary:
                     # SECURITY: never expose model thinking content in the
                     # trace panel — record a status line only.  The raw
                     # thinking text stays internal to the service layer.
@@ -537,7 +579,7 @@ class BioAgentService:
                         "status": "thinking",
                         "content": "",  # do NOT leak reasoning text
                         "answer_so_far": "",
-                        "trace_line": f"🤔 推理中... (步骤 {step_count})",
+                        "trace_line": last_summary or "正在分析任务，准备下一步操作",
                         "language": "",
                     }
 
