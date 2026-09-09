@@ -26,6 +26,10 @@ REQUIRED = {
     "biochat/environment/catalog.yaml",
     "biochat/tool/tool_description/catalog.yaml",
     "biochat/knowledge/docs/sgRNA_design_guide.md",
+    "biochat/knowledge/docs/cd19_design_method.md",
+    "biochat/knowledge/docs/vh_only_design_workflow.md",
+    "biochat/knowledge/docs/antibody_design_failure_modes.md",
+    "biochat/tool/antibody_design/methods.py",
     "biochat/tool/antibody_design/models/cdrh3_vae_model_best.pth",
 }
 

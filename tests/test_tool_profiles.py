@@ -37,7 +37,7 @@ class TestToolRegistryProfiles:
 
         registry = ToolRegistry(load_all_tool_descriptions(profile="full"),
                                 profile="full")
-        assert len(registry.tools) == 226
+        assert len(registry.tools) == 228
 
     def test_minimal_profile_registers_only_manifest_modules(self):
         from biochat.tool.profiles import MINIMAL_TOOL_MODULES
@@ -49,7 +49,7 @@ class TestToolRegistryProfiles:
         assert set(module2api) == MINIMAL_TOOL_MODULES
         expected = sum(len(v) for v in module2api.values())
         assert len(registry.tools) == expected
-        assert len(registry.tools) < 226
+        assert len(registry.tools) < 228
 
     def test_invalid_profile_falls_back_to_full(self):
         from biochat.tool.registry import ToolRegistry

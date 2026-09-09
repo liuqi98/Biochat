@@ -1,5 +1,7 @@
 module,tool_name,used_by_demo,used_by_antibody_pipeline,used_by_registry,requires_external_dependency,recommendation
+biochat.tool.antibody_design,assess_antibody_design_evidence,True,True,False,torch;ImmuneBuilder,keep_minimal
 biochat.tool.antibody_design,design_vh_only_antibodies,True,True,False,torch;ImmuneBuilder,keep_minimal
+biochat.tool.antibody_design,get_antibody_design_method,True,True,False,torch;ImmuneBuilder,keep_minimal
 biochat.tool.antibody_design,score_and_rank_candidates,True,True,False,torch;ImmuneBuilder,keep_minimal
 biochat.tool.biochemistry,analyze_circular_dichroism_spectra,False,False,False,Bio;matplotlib,optional_full_profile
 biochat.tool.biochemistry,analyze_enzyme_kinetics_assay,False,False,False,Bio;matplotlib,optional_full_profile
