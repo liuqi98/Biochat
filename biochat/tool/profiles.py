@@ -10,6 +10,7 @@ MINIMAL_TOOL_MODULES: frozenset[str] = frozenset({
     'biochat.tool.antibody_design',
     'biochat.tool.database',
     'biochat.tool.literature',
+    'biochat.tool.paper_monitor',
     'biochat.tool.protocols',
     'biochat.tool.support_tools',
 })

@@ -172,6 +172,18 @@ agent.go("Find FDA active ingredient information for ibuprofen")
 
 详见 [MCP 集成文档](docs/mcp_integration.md)。
 
+### AI 抗体论文监测
+
+增量扫描 Europe PMC 和 bioRxiv，记录新论文、版本及元数据变化，支持 DOI 去重和中断续跑：
+
+```bash
+python -m biochat.papers scan --lookback-days 7
+python -m biochat.papers updates --limit 20
+```
+
+Agent 可调用 `monitor_antibody_papers` 和 `list_paper_updates`。主题配置、持久化目录和定时运行示例见
+[论文监测器文档](docs/paper_monitor.md)。扫描结果是待评估资料，定时任务需单独配置。
+
 ## 🎯 Agent 工作流程
 
 ```
