@@ -160,6 +160,8 @@ biochat.tool.molecular_biology,get_oligo_annealing_protocol,False,False,False,Bi
 biochat.tool.molecular_biology,get_plasmid_sequence,False,False,False,Bio,optional_full_profile
 biochat.tool.molecular_biology,golden_gate_assembly,False,False,False,Bio,optional_full_profile
 biochat.tool.molecular_biology,pcr_simple,False,False,False,Bio,optional_full_profile
+biochat.tool.paper_monitor,list_paper_updates,True,False,False,,keep_minimal
+biochat.tool.paper_monitor,monitor_antibody_papers,True,False,False,,keep_minimal
 biochat.tool.pathology,analyze_aortic_diameter_and_geometry,False,False,False,matplotlib,optional_full_profile
 biochat.tool.pathology,analyze_atp_luminescence_assay,False,False,False,matplotlib,optional_full_profile
 biochat.tool.pathology,analyze_bone_microct_morphometry,False,False,False,matplotlib,optional_full_profile

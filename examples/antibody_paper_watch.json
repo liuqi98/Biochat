@@ -1,0 +1,7 @@
+{
+  "name": "ai_antibody",
+  "topic_groups": [
+    ["antibody", "antibodies", "nanobody", "nanobodies", "VHH", "CDRH3", "HCDR3", "single-domain antibody"],
+    ["machine learning", "deep learning", "diffusion", "generative", "language model", "inverse folding", "de novo design", "artificial intelligence", "ProteinMPNN", "RFdiffusion", "RFantibody"]
+  ]
+}

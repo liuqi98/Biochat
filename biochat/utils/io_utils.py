@@ -111,6 +111,7 @@ _TOOL_FIELDS: tuple[str, ...] = (
     "synthetic_biology", "systems_biology", "support_tools",
     "database", "lab_automation", "protocols",
     "antibody_design",
+    "paper_monitor",
 )
 
 
